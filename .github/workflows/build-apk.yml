@@ -18,7 +18,7 @@ on:
       - ".github/workflows/build-apk.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -105,3 +105,19 @@ jobs:
           path: updater-app/${{ steps.apk.outputs.name }}
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish GitHub Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Build ${{ github.run_number }}
+          body: |
+            APK сборки № ${{ github.run_number }} ветки `main`.
+
+            * Commit: ${{ github.sha }}
+            * Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            Файл `${{ steps.apk.outputs.name }}` приложен ниже.
+          files: updater-app/${{ steps.apk.outputs.name }}
+          fail_on_unmatched_files: true

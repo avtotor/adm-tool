@@ -1,8 +1,9 @@
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -25,13 +26,30 @@ type LogEntry = {
   msg: string;
 };
 
+const MONO = Platform.select({
+  ios: "Menlo",
+  android: "monospace",
+  default: "monospace",
+}) as string;
+
+const COLOR = {
+  bg: "#ffffff",
+  fg: "#000000",
+  muted: "#9ca3af",
+  rule: "#000000",
+  ruleFaint: "rgba(0,0,0,0.1)",
+  rowAlt: "#fafafa",
+  rowActive: "#f4f4f5",
+  err: "#000000",
+} as const;
+
 function fmtTimeAgo(ts: number | null): string {
   if (ts == null) return "—";
   const diff = Date.now() - ts;
-  if (diff < 5_000) return "только что";
-  if (diff < 60_000) return `${Math.floor(diff / 1000)}с назад`;
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}м назад`;
-  return `${Math.floor(diff / 3_600_000)}ч назад`;
+  if (diff < 5_000) return "сейчас";
+  if (diff < 60_000) return `${Math.floor(diff / 1000)}с`;
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}м`;
+  return `${Math.floor(diff / 3_600_000)}ч`;
 }
 
 export default function App() {
@@ -118,7 +136,7 @@ export default function App() {
       <SafeAreaView style={styles.root} edges={["top", "left", "right"]}>
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>ADM Updater</Text>
+            <Text style={styles.title}>ADM · UPDATER</Text>
             <Text style={styles.subtitle}>{SERVER_URL}</Text>
           </View>
           <StatusBadge status={status} />
@@ -128,79 +146,87 @@ export default function App() {
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           refreshControl={
-            <RefreshControl refreshing={status === "syncing"} onRefresh={refresh} />
+            <RefreshControl
+              refreshing={status === "syncing"}
+              onRefresh={refresh}
+              tintColor={COLOR.fg}
+            />
           }
         >
-          <Card title="Синхронизация">
+          <Section title="Синхронизация">
             <Row label="Статус" value={statusLabel(status, lastError)} />
-            <Row label="Последний heartbeat" value={fmtTimeAgo(lastSync)} />
+            <Row label="Last seen" value={fmtTimeAgo(lastSync)} />
             <Row
               label="Интервал"
-              value={`каждые ${Math.round(HEARTBEAT_SECONDS / 60)} мин.`}
+              value={`${Math.round(HEARTBEAT_SECONDS / 60)} мин.`}
             />
             <Pressable
               style={({ pressed }) => [
                 styles.btn,
                 styles.btnPrimary,
                 pressed && styles.btnPressed,
+                status === "syncing" && styles.btnDisabled,
               ]}
               onPress={refresh}
               disabled={status === "syncing"}
             >
               {status === "syncing" ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={COLOR.bg} size="small" />
               ) : (
-                <Text style={styles.btnTextPrimary}>Проверить сейчас</Text>
+                <Text style={styles.btnText}>Проверить</Text>
               )}
             </Pressable>
-          </Card>
+          </Section>
 
-          <Card title="Устройство">
+          <Section title="Устройство">
             <Row label="Имя" value={device?.name ?? "—"} />
-            <Row label="Serial (ANDROID_ID)" value={device?.serial ?? "—"} mono />
+            <Row label="Serial" value={device?.serial ?? "—"} mono />
             <Row label="Android" value={device?.android ?? "—"} />
             <Row label="IP" value={device?.ip ?? "—"} mono />
             <Row
               label="Батарея"
               value={device?.battery != null ? `${device.battery}%` : "—"}
             />
-          </Card>
+          </Section>
 
-          <Card title="Отслеживаемые пакеты">
+          <Section title="Пакеты">
             {device?.packages.map((p) => (
               <View key={p.package} style={styles.pkgRow}>
                 <Text style={styles.pkgName}>{p.package}</Text>
                 <Text style={styles.pkgVer}>
                   v{p.versionCode}
-                  {p.versionName ? ` (${p.versionName})` : ""}
+                  {p.versionName ? ` · ${p.versionName}` : ""}
                 </Text>
               </View>
             )) ?? <Text style={styles.muted}>—</Text>}
             {!TARGET_PACKAGE && (
-              <Text style={[styles.muted, { marginTop: 8 }]}>
-                EXPO_PUBLIC_TARGET_PACKAGE не задан в .env
+              <Text style={[styles.note, { marginTop: 8 }]}>
+                TARGET_PACKAGE НЕ ЗАДАН
               </Text>
             )}
-          </Card>
+          </Section>
 
-          <Card title={`Доступные обновления${updates.length ? ` (${updates.length})` : ""}`}>
+          <Section
+            title={`Обновления${updates.length ? ` · ${updates.length}` : ""}`}
+          >
             {updates.length === 0 ? (
-              <Text style={styles.muted}>Все актуально</Text>
+              <Text style={styles.muted}>всё актуально</Text>
             ) : (
               updates.map((u) => {
                 const isInstalling = installing === u.package;
                 return (
                   <View key={`${u.package}-${u.versionCode}`} style={styles.updateRow}>
-                    <View style={{ flex: 1 }}>
+                    <View style={{ flex: 1, paddingRight: 8 }}>
                       <Text style={styles.pkgName}>{u.package}</Text>
                       <Text style={styles.pkgVer}>
-                        → v{u.versionCode} ({u.versionName})
+                        → v{u.versionCode} · {u.versionName}
                       </Text>
                       {isInstalling && progress && (
                         <Text style={styles.progress}>
-                          {progress.percent}%{" "}
-                          {progress.totalBytes > 0 &&
-                            `· ${(progress.bytesWritten / 1024 / 1024).toFixed(1)} / ${(progress.totalBytes / 1024 / 1024).toFixed(1)} MB`}
+                          {progress.percent}%
+                          {progress.totalBytes > 0
+                            ? ` · ${(progress.bytesWritten / 1024 / 1024).toFixed(1)}/${(progress.totalBytes / 1024 / 1024).toFixed(1)} MB`
+                            : ""}
                         </Text>
                       )}
                     </View>
@@ -216,39 +242,36 @@ export default function App() {
                       disabled={!!installing}
                     >
                       {isInstalling ? (
-                        <ActivityIndicator color="#fff" size="small" />
+                        <ActivityIndicator color={COLOR.bg} size="small" />
                       ) : (
-                        <Text style={styles.btnTextPrimary}>Установить</Text>
+                        <Text style={styles.btnText}>Установить</Text>
                       )}
                     </Pressable>
                   </View>
                 );
               })
             )}
-          </Card>
+          </Section>
 
-          <Card title="Лог">
+          <Section title="Лог">
             {log.length === 0 ? (
               <Text style={styles.muted}>пусто</Text>
             ) : (
               log.map((e) => (
                 <View key={e.ts} style={styles.logRow}>
-                  <Text style={[styles.logTs]}>
+                  <Text style={styles.logTs}>
                     {new Date(e.ts).toLocaleTimeString()}
                   </Text>
                   <Text
-                    style={[
-                      styles.logMsg,
-                      e.level === "error" && styles.logErr,
-                      e.level === "warn" && styles.logWarn,
-                    ]}
+                    style={[styles.logMsg, e.level === "error" && styles.logErr]}
+                    numberOfLines={3}
                   >
                     {e.msg}
                   </Text>
                 </View>
               ))
             )}
-          </Card>
+          </Section>
         </ScrollView>
       </SafeAreaView>
     </SafeAreaProvider>
@@ -256,25 +279,29 @@ export default function App() {
 }
 
 function StatusBadge({ status }: { status: SyncStatus }) {
-  const color =
+  const label =
     status === "ok"
-      ? "#2ea043"
+      ? "ONLINE"
       : status === "error"
-        ? "#f85149"
+        ? "ERROR"
         : status === "syncing"
-          ? "#d29922"
-          : "#8b949e";
+          ? "SYNC"
+          : "IDLE";
+  const inverted = status === "ok" || status === "error";
   return (
-    <View style={[styles.badge, { backgroundColor: `${color}22`, borderColor: color }]}>
-      <View style={[styles.dot, { backgroundColor: color }]} />
-      <Text style={[styles.badgeText, { color }]}>
-        {status === "ok"
-          ? "ONLINE"
-          : status === "error"
-            ? "ERROR"
-            : status === "syncing"
-              ? "SYNC"
-              : "IDLE"}
+    <View
+      style={[
+        styles.badge,
+        inverted ? styles.badgeFilled : styles.badgeOutline,
+      ]}
+    >
+      <Text
+        style={[
+          styles.badgeText,
+          inverted ? styles.badgeTextInverted : styles.badgeTextOutline,
+        ]}
+      >
+        {label}
       </Text>
     </View>
   );
@@ -287,11 +314,11 @@ function statusLabel(s: SyncStatus, err: string | null): string {
   return "—";
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>{title}</Text>
-      {children}
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <View>{children}</View>
     </View>
   );
 }
@@ -300,7 +327,10 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
   return (
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={[styles.rowValue, mono && styles.mono]} numberOfLines={1}>
+      <Text
+        style={[styles.rowValue, mono && styles.monoTight]}
+        numberOfLines={1}
+      >
         {value}
       </Text>
     </View>
@@ -308,84 +338,157 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#f6f8fa" },
+  root: { flex: 1, backgroundColor: COLOR.bg },
+
   header: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#fff",
+    paddingVertical: 14,
+    backgroundColor: COLOR.bg,
     borderBottomWidth: 1,
-    borderBottomColor: "#d0d7de",
+    borderBottomColor: COLOR.fg,
     flexDirection: "row",
     alignItems: "center",
   },
-  title: { fontSize: 18, fontWeight: "700", color: "#1f2328" },
-  subtitle: { fontSize: 12, color: "#656d76", marginTop: 2 },
-  scroll: { flex: 1 },
-  scrollContent: { padding: 12, paddingBottom: 32 },
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#d0d7de",
-    padding: 12,
-    marginBottom: 12,
-  },
-  cardTitle: {
+  title: {
+    fontFamily: MONO,
     fontSize: 13,
-    fontWeight: "600",
-    color: "#656d76",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 8,
+    fontWeight: "700",
+    letterSpacing: 2,
+    color: COLOR.fg,
   },
+  subtitle: {
+    fontFamily: MONO,
+    fontSize: 11,
+    color: COLOR.muted,
+    marginTop: 2,
+  },
+
+  scroll: { flex: 1 },
+  scrollContent: { padding: 16, paddingBottom: 32 },
+
+  section: {
+    marginBottom: 22,
+  },
+  sectionTitle: {
+    fontFamily: MONO,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 2,
+    color: COLOR.fg,
+    textTransform: "uppercase",
+    marginBottom: 8,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: COLOR.fg,
+  },
+
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 4,
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLOR.ruleFaint,
   },
-  rowLabel: { color: "#656d76", fontSize: 13 },
-  rowValue: { color: "#1f2328", fontSize: 13, fontWeight: "500", maxWidth: "65%" },
-  mono: { fontFamily: "monospace", fontSize: 12 },
-  muted: { color: "#8b949e", fontSize: 13 },
-  btn: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 10,
+  rowLabel: {
+    fontFamily: MONO,
+    fontSize: 11,
+    color: COLOR.muted,
+    letterSpacing: 1,
+    textTransform: "uppercase",
   },
-  btnPrimary: { backgroundColor: "#0969da" },
-  btnPressed: { opacity: 0.8 },
-  btnDisabled: { opacity: 0.5 },
-  btnSmall: { paddingVertical: 8, paddingHorizontal: 12, marginTop: 0, marginLeft: 8 },
-  btnTextPrimary: { color: "#fff", fontWeight: "600", fontSize: 14 },
-  pkgRow: { paddingVertical: 6 },
-  pkgName: { color: "#1f2328", fontSize: 13, fontFamily: "monospace" },
-  pkgVer: { color: "#656d76", fontSize: 12, marginTop: 2 },
+  rowValue: {
+    fontFamily: MONO,
+    fontSize: 12,
+    color: COLOR.fg,
+    maxWidth: "65%",
+    textAlign: "right",
+  },
+  monoTight: { letterSpacing: 0 },
+
+  muted: { fontFamily: MONO, fontSize: 11, color: COLOR.muted },
+  note: {
+    fontFamily: MONO,
+    fontSize: 10,
+    letterSpacing: 1.5,
+    color: COLOR.muted,
+    textTransform: "uppercase",
+  },
+
+  pkgRow: {
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLOR.ruleFaint,
+  },
+  pkgName: { fontFamily: MONO, fontSize: 12, color: COLOR.fg },
+  pkgVer: { fontFamily: MONO, fontSize: 11, color: COLOR.muted, marginTop: 2 },
+
   updateRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: "#eaeef2",
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLOR.ruleFaint,
   },
-  progress: { color: "#0969da", fontSize: 12, marginTop: 4 },
-  badge: {
-    flexDirection: "row",
+  progress: {
+    fontFamily: MONO,
+    fontSize: 11,
+    color: COLOR.fg,
+    marginTop: 4,
+  },
+
+  btn: {
+    paddingVertical: 9,
+    paddingHorizontal: 14,
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
+    justifyContent: "center",
+    marginTop: 12,
     borderWidth: 1,
   },
-  badgeText: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  logRow: { flexDirection: "row", gap: 8, paddingVertical: 2 },
-  logTs: { fontFamily: "monospace", fontSize: 11, color: "#8b949e", minWidth: 64 },
-  logMsg: { fontSize: 12, color: "#1f2328", flex: 1 },
-  logErr: { color: "#cf222e" },
-  logWarn: { color: "#9a6700" },
+  btnPrimary: {
+    backgroundColor: COLOR.fg,
+    borderColor: COLOR.fg,
+  },
+  btnText: {
+    fontFamily: MONO,
+    color: COLOR.bg,
+    fontWeight: "700",
+    fontSize: 10,
+    letterSpacing: 2,
+    textTransform: "uppercase",
+  },
+  btnPressed: { opacity: 0.7 },
+  btnDisabled: { opacity: 0.4 },
+  btnSmall: { paddingVertical: 7, paddingHorizontal: 10, marginTop: 0 },
+
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: COLOR.fg,
+  },
+  badgeOutline: { backgroundColor: COLOR.bg },
+  badgeFilled: { backgroundColor: COLOR.fg },
+  badgeText: {
+    fontFamily: MONO,
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 2,
+  },
+  badgeTextOutline: { color: COLOR.fg },
+  badgeTextInverted: { color: COLOR.bg },
+
+  logRow: {
+    flexDirection: "row",
+    gap: 10,
+    paddingVertical: 3,
+  },
+  logTs: {
+    fontFamily: MONO,
+    fontSize: 10,
+    color: COLOR.muted,
+    minWidth: 70,
+  },
+  logMsg: { fontFamily: MONO, fontSize: 11, color: COLOR.fg, flex: 1 },
+  logErr: { color: COLOR.err, fontWeight: "700" },
 });

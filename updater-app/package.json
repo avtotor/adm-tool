@@ -8,6 +8,7 @@
     "start": "expo start",
     "android": "expo start --android",
     "prebuild": "expo prebuild --platform android --clean",
+    "icons": "node scripts/build-icons.mjs",
     "build:dev": "eas build --profile development --platform android",
     "build:preview": "eas build --profile preview --platform android",
     "build:prod": "eas build --profile production --platform android"
@@ -31,6 +32,7 @@
   "devDependencies": {
     "@types/react": "~19.1.0",
     "dotenv": "^17.3.1",
+    "sharp": "^0.34.5",
     "typescript": "~5.9.2"
   }
 }
