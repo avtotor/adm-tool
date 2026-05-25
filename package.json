@@ -1,0 +1,20 @@
+{
+  "name": "adm-tool",
+  "version": "0.1.0",
+  "description": "Centralized APK management for Android tablets on LAN",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "dependencies": {
+    "fastify": "^5.1.0",
+    "@fastify/static": "^8.0.3",
+    "@fastify/multipart": "^9.0.1",
+    "@fastify/view": "^10.0.1",
+    "@fastify/formbody": "^8.0.1",
+    "ejs": "^3.1.10",
+    "adbkit-apkreader": "^3.2.0"
+  }
+}

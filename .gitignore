@@ -1,0 +1,37 @@
+node_modules/
+**/node_modules/
+
+# секреты и конфиги окружения
+.env
+.env.local
+.env.*.local
+updater-app/.env
+updater-app/.env.local
+
+# runtime данные сервера
+data/*
+!data/.gitkeep
+
+# локальные настройки Claude Code (хуки/permissions конкретного пользователя)
+.claude/
+
+# логи и временное
+*.log
+*.tmp
+
+# Expo / RN артефакты
+.expo/
+.expo-shared/
+dist/
+web-build/
+android/
+ios/
+*.apk
+*.aab
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db

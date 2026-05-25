@@ -1,0 +1,36 @@
+{
+  "name": "adm-updater",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "prebuild": "expo prebuild --platform android --clean",
+    "build:dev": "eas build --profile development --platform android",
+    "build:preview": "eas build --profile preview --platform android",
+    "build:prod": "eas build --profile production --platform android"
+  },
+  "dependencies": {
+    "expo": "~54.0.33",
+    "expo-application": "~7.0.7",
+    "expo-battery": "~10.0.7",
+    "expo-build-properties": "~1.0.10",
+    "expo-constants": "^18.0.13",
+    "expo-device": "~8.0.7",
+    "expo-file-system": "~19.0.16",
+    "expo-intent-launcher": "~13.0.7",
+    "expo-network": "~8.0.7",
+    "expo-secure-store": "^15.0.8",
+    "expo-status-bar": "~3.0.9",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-safe-area-context": "^5.6.2"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.0",
+    "dotenv": "^17.3.1",
+    "typescript": "~5.9.2"
+  }
+}

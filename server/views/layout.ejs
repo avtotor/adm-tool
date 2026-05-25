@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title><%= title %> · adm-tool</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>adm-tool</h1>
+    <nav>
+      <a href="/" class="<%= active === 'dashboard' ? 'active' : '' %>">Устройства</a>
+      <a href="/apks" class="<%= active === 'apks' ? 'active' : '' %>">APK</a>
+    </nav>
+  </header>
+  <main>
+    <%- body %>
+  </main>
+</body>
+</html>

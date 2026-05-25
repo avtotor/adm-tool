@@ -1,0 +1,73 @@
+<%- include('_header', { title: 'APK', active: 'apks' }) %>
+
+<div class="page-header">
+  <h2>APK</h2>
+</div>
+
+<section class="card">
+  <h3>Загрузить новый APK</h3>
+  <form method="post" action="/apks/upload" enctype="multipart/form-data" class="upload-form">
+    <input type="file" name="apk" accept=".apk" required>
+    <button type="submit">Загрузить</button>
+  </form>
+  <p class="muted small">
+    Сервер автоматически прочитает <code>packageName</code> и <code>versionCode</code> из манифеста.
+  </p>
+</section>
+
+<section>
+  <h3>Загруженные APK <span class="count"><%= apks.length %></span></h3>
+
+  <% if (apks.length === 0) { %>
+    <div class="empty">Пока ничего не загружено.</div>
+  <% } else { %>
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Пакет</th>
+          <th>Версия</th>
+          <th>Размер</th>
+          <th>Загружен</th>
+          <th>SHA-256</th>
+          <th>Статус</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+      <% apks.forEach(function(a) { %>
+        <% var active = rollouts[a.package] === a.id; %>
+        <tr class="<%= active ? 'row-active' : '' %>">
+          <td><code><%= a.package %></code></td>
+          <td>v<%= a.versionCode %> <span class="muted">(<%= a.versionName %>)</span></td>
+          <td><%= (a.size / 1024 / 1024).toFixed(2) %> MB</td>
+          <td><%= fmtTime(a.uploaded_at) %></td>
+          <td><code class="hash" title="<%= a.sha256 %>"><%= a.sha256.slice(0, 12) %>…</code></td>
+          <td>
+            <% if (active) { %>
+              <span class="badge ok">активна</span>
+            <% } else { %>
+              <span class="muted">—</span>
+            <% } %>
+          </td>
+          <td class="actions">
+            <% if (!active) { %>
+              <form method="post" action="/apks/<%= a.id %>/activate" style="display:inline">
+                <button type="submit">Активировать</button>
+              </form>
+            <% } else { %>
+              <form method="post" action="/rollouts/<%= a.package %>/clear" style="display:inline">
+                <button type="submit" class="ghost">Снять с роллаута</button>
+              </form>
+            <% } %>
+            <form method="post" action="/apks/<%= a.id %>/delete" style="display:inline" onsubmit="return confirm('Удалить APK?')">
+              <button type="submit" class="danger">Удалить</button>
+            </form>
+          </td>
+        </tr>
+      <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+</section>
+
+<%- include('_footer') %>

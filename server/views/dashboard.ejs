@@ -1,0 +1,66 @@
+<%- include('_header', { title: 'Устройства', active: 'dashboard' }) %>
+
+<div class="page-header">
+  <h2>Устройства <span class="count"><%= devices.length %></span></h2>
+  <div class="legend">
+    <span class="dot online"></span> онлайн (&lt;15м)
+    <span class="dot offline"></span> офлайн
+  </div>
+</div>
+
+<% if (devices.length === 0) { %>
+  <div class="empty">
+    Устройств пока нет. Они появятся после первого heartbeat.<br>
+    <code>POST /api/heartbeat</code>
+  </div>
+<% } else { %>
+  <table class="data">
+    <thead>
+      <tr>
+        <th></th>
+        <th>Имя / Serial</th>
+        <th>IP</th>
+        <th>Android</th>
+        <th>Батарея</th>
+        <th>Last seen</th>
+        <th>Пакеты</th>
+      </tr>
+    </thead>
+    <tbody>
+    <% devices.forEach(function(d) { %>
+      <tr>
+        <td><span class="dot <%= d.online ? 'online' : 'offline' %>"></span></td>
+        <td>
+          <strong><%= d.name || d.serial %></strong>
+          <div class="muted small"><%= d.serial %></div>
+        </td>
+        <td><%= d.ip || '—' %></td>
+        <td><%= d.android || '—' %></td>
+        <td><%= d.battery != null ? d.battery + '%' : '—' %></td>
+        <td><%= d.last_seen_fmt %></td>
+        <td>
+          <% if (d.pkgs.length === 0) { %>
+            <span class="muted">—</span>
+          <% } else { %>
+            <ul class="pkglist">
+            <% d.pkgs.forEach(function(p) { %>
+              <li>
+                <code><%= p.pkg %></code>
+                <span class="vc">v<%= p.versionCode %><%= p.versionName ? ' (' + p.versionName + ')' : '' %></span>
+                <% if (p.outdated) { %>
+                  <span class="badge warn">→ v<%= p.targetVc %></span>
+                <% } else if (p.targetVc) { %>
+                  <span class="badge ok">актуально</span>
+                <% } %>
+              </li>
+            <% }); %>
+            </ul>
+          <% } %>
+        </td>
+      </tr>
+    <% }); %>
+    </tbody>
+  </table>
+<% } %>
+
+<%- include('_footer') %>
