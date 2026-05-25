@@ -75,7 +75,9 @@ jobs:
           echo "::notice::SERVER_URL=$SERVER_URL TARGET_PACKAGE=$TARGET_PACKAGE HB=${HEARTBEAT}s"
 
       - name: Expo prebuild (generate native android/)
-        run: pnpm exec expo prebuild --platform android --no-install --non-interactive
+        env:
+          CI: "1"
+        run: pnpm exec expo prebuild --platform android --no-install
 
       - name: Build release APK
         working-directory: updater-app/android
