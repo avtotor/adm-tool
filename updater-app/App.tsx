@@ -33,14 +33,17 @@ const MONO = Platform.select({
 }) as string;
 
 const COLOR = {
-  bg: "#ffffff",
-  fg: "#000000",
-  muted: "#9ca3af",
-  rule: "#000000",
-  ruleFaint: "rgba(0,0,0,0.1)",
-  rowAlt: "#fafafa",
-  rowActive: "#f4f4f5",
-  err: "#000000",
+  bg: "#0a0a0a",
+  bgPanel: "rgba(15,15,15,0.85)",
+  fg: "#f2f2f2",
+  muted: "#a6a6a6",
+  border: "#333333",
+  ruleFaint: "rgba(255,255,255,0.06)",
+  primary: "#39ff14",
+  primarySoft: "rgba(57,255,20,0.10)",
+  primaryGlow: "rgba(57,255,20,0.45)",
+  destructive: "#ff4500",
+  destructiveSoft: "rgba(255,69,0,0.10)",
 } as const;
 
 function fmtTimeAgo(ts: number | null): string {
@@ -132,11 +135,13 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       <SafeAreaView style={styles.root} edges={["top", "left", "right"]}>
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>ADM · UPDATER</Text>
+            <Text style={styles.title}>
+              <Text style={styles.titlePrefix}>{"> "}</Text>ADM·UPDATER
+            </Text>
             <Text style={styles.subtitle}>{SERVER_URL}</Text>
           </View>
           <StatusBadge status={status} />
@@ -149,12 +154,14 @@ export default function App() {
             <RefreshControl
               refreshing={status === "syncing"}
               onRefresh={refresh}
-              tintColor={COLOR.fg}
+              tintColor={COLOR.primary}
+              colors={[COLOR.primary]}
+              progressBackgroundColor={COLOR.bg}
             />
           }
         >
-          <Section title="Синхронизация">
-            <Row label="Статус" value={statusLabel(status, lastError)} />
+          <Section title="// Синхронизация">
+            <Row label="Статус" value={statusLabel(status, lastError)} highlight={status === "error" ? "err" : status === "ok" ? "ok" : undefined} />
             <Row label="Last seen" value={fmtTimeAgo(lastSync)} />
             <Row
               label="Интервал"
@@ -171,14 +178,14 @@ export default function App() {
               disabled={status === "syncing"}
             >
               {status === "syncing" ? (
-                <ActivityIndicator color={COLOR.bg} size="small" />
+                <ActivityIndicator color={COLOR.primary} size="small" />
               ) : (
                 <Text style={styles.btnText}>Проверить</Text>
               )}
             </Pressable>
           </Section>
 
-          <Section title="Устройство">
+          <Section title="// Устройство">
             <Row label="Имя" value={device?.name ?? "—"} />
             <Row label="Serial" value={device?.serial ?? "—"} mono />
             <Row label="Android" value={device?.android ?? "—"} />
@@ -189,7 +196,7 @@ export default function App() {
             />
           </Section>
 
-          <Section title="Пакеты">
+          <Section title="// Пакеты">
             {device?.packages.map((p) => (
               <View key={p.package} style={styles.pkgRow}>
                 <Text style={styles.pkgName}>{p.package}</Text>
@@ -201,16 +208,16 @@ export default function App() {
             )) ?? <Text style={styles.muted}>—</Text>}
             {!TARGET_PACKAGE && (
               <Text style={[styles.note, { marginTop: 8 }]}>
-                TARGET_PACKAGE НЕ ЗАДАН
+                ! TARGET_PACKAGE НЕ ЗАДАН
               </Text>
             )}
           </Section>
 
           <Section
-            title={`Обновления${updates.length ? ` · ${updates.length}` : ""}`}
+            title={`// Обновления${updates.length ? ` · ${updates.length}` : ""}`}
           >
             {updates.length === 0 ? (
-              <Text style={styles.muted}>всё актуально</Text>
+              <Text style={styles.muted}>// всё актуально</Text>
             ) : (
               updates.map((u) => {
                 const isInstalling = installing === u.package;
@@ -218,12 +225,12 @@ export default function App() {
                   <View key={`${u.package}-${u.versionCode}`} style={styles.updateRow}>
                     <View style={{ flex: 1, paddingRight: 8 }}>
                       <Text style={styles.pkgName}>{u.package}</Text>
-                      <Text style={styles.pkgVer}>
+                      <Text style={styles.pkgVerUpdate}>
                         → v{u.versionCode} · {u.versionName}
                       </Text>
                       {isInstalling && progress && (
                         <Text style={styles.progress}>
-                          {progress.percent}%
+                          [{progress.percent}%]
                           {progress.totalBytes > 0
                             ? ` · ${(progress.bytesWritten / 1024 / 1024).toFixed(1)}/${(progress.totalBytes / 1024 / 1024).toFixed(1)} MB`
                             : ""}
@@ -242,7 +249,7 @@ export default function App() {
                       disabled={!!installing}
                     >
                       {isInstalling ? (
-                        <ActivityIndicator color={COLOR.bg} size="small" />
+                        <ActivityIndicator color={COLOR.primary} size="small" />
                       ) : (
                         <Text style={styles.btnText}>Установить</Text>
                       )}
@@ -253,9 +260,9 @@ export default function App() {
             )}
           </Section>
 
-          <Section title="Лог">
+          <Section title="// Лог">
             {log.length === 0 ? (
-              <Text style={styles.muted}>пусто</Text>
+              <Text style={styles.muted}>// пусто</Text>
             ) : (
               log.map((e) => (
                 <View key={e.ts} style={styles.logRow}>
@@ -287,22 +294,17 @@ function StatusBadge({ status }: { status: SyncStatus }) {
         : status === "syncing"
           ? "SYNC"
           : "IDLE";
-  const inverted = status === "ok" || status === "error";
+
+  const palette =
+    status === "ok"
+      ? { color: COLOR.primary, bg: COLOR.primarySoft }
+      : status === "error"
+        ? { color: COLOR.destructive, bg: COLOR.destructiveSoft }
+        : { color: COLOR.muted, bg: "transparent" };
+
   return (
-    <View
-      style={[
-        styles.badge,
-        inverted ? styles.badgeFilled : styles.badgeOutline,
-      ]}
-    >
-      <Text
-        style={[
-          styles.badgeText,
-          inverted ? styles.badgeTextInverted : styles.badgeTextOutline,
-        ]}
-      >
-        {label}
-      </Text>
+    <View style={[styles.badge, { borderColor: palette.color, backgroundColor: palette.bg }]}>
+      <Text style={[styles.badgeText, { color: palette.color }]}>{label}</Text>
     </View>
   );
 }
@@ -317,18 +319,41 @@ function statusLabel(s: SyncStatus, err: string | null): string {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        <View style={styles.sectionRule} />
+      </View>
       <View>{children}</View>
     </View>
   );
 }
 
-function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function Row({
+  label,
+  value,
+  mono,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  highlight?: "ok" | "err";
+}) {
+  const highlightColor =
+    highlight === "ok"
+      ? COLOR.primary
+      : highlight === "err"
+        ? COLOR.destructive
+        : undefined;
   return (
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
       <Text
-        style={[styles.rowValue, mono && styles.monoTight]}
+        style={[
+          styles.rowValue,
+          mono && styles.monoTight,
+          highlightColor != null && { color: highlightColor },
+        ]}
         numberOfLines={1}
       >
         {value}
@@ -343,50 +368,54 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: COLOR.bg,
+    backgroundColor: COLOR.bgPanel,
     borderBottomWidth: 1,
-    borderBottomColor: COLOR.fg,
+    borderBottomColor: COLOR.border,
     flexDirection: "row",
     alignItems: "center",
   },
   title: {
     fontFamily: MONO,
     fontSize: 13,
-    fontWeight: "700",
-    letterSpacing: 2,
-    color: COLOR.fg,
+    fontWeight: "800",
+    letterSpacing: 2.5,
+    color: COLOR.primary,
+    textShadowColor: COLOR.primaryGlow,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 6,
   },
+  titlePrefix: { color: COLOR.muted },
   subtitle: {
     fontFamily: MONO,
     fontSize: 11,
     color: COLOR.muted,
-    marginTop: 2,
+    marginTop: 3,
   },
 
   scroll: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 32 },
 
-  section: {
-    marginBottom: 22,
-  },
+  section: { marginBottom: 22 },
+  sectionHeader: { marginBottom: 10 },
   sectionTitle: {
     fontFamily: MONO,
-    fontSize: 10,
-    fontWeight: "700",
+    fontSize: 11,
+    fontWeight: "800",
     letterSpacing: 2,
-    color: COLOR.fg,
+    color: COLOR.primary,
     textTransform: "uppercase",
-    marginBottom: 8,
-    paddingBottom: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: COLOR.fg,
+    marginBottom: 6,
+  },
+  sectionRule: {
+    height: 1,
+    backgroundColor: COLOR.border,
   },
 
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLOR.ruleFaint,
   },
@@ -394,7 +423,7 @@ const styles = StyleSheet.create({
     fontFamily: MONO,
     fontSize: 11,
     color: COLOR.muted,
-    letterSpacing: 1,
+    letterSpacing: 1.5,
     textTransform: "uppercase",
   },
   rowValue: {
@@ -406,12 +435,12 @@ const styles = StyleSheet.create({
   },
   monoTight: { letterSpacing: 0 },
 
-  muted: { fontFamily: MONO, fontSize: 11, color: COLOR.muted },
+  muted: { fontFamily: MONO, fontSize: 11, color: COLOR.muted, paddingVertical: 6 },
   note: {
     fontFamily: MONO,
     fontSize: 10,
     letterSpacing: 1.5,
-    color: COLOR.muted,
+    color: COLOR.destructive,
     textTransform: "uppercase",
   },
 
@@ -421,7 +450,13 @@ const styles = StyleSheet.create({
     borderBottomColor: COLOR.ruleFaint,
   },
   pkgName: { fontFamily: MONO, fontSize: 12, color: COLOR.fg },
-  pkgVer: { fontFamily: MONO, fontSize: 11, color: COLOR.muted, marginTop: 2 },
+  pkgVer: { fontFamily: MONO, fontSize: 11, color: COLOR.muted, marginTop: 3 },
+  pkgVerUpdate: {
+    fontFamily: MONO,
+    fontSize: 11,
+    color: COLOR.primary,
+    marginTop: 3,
+  },
 
   updateRow: {
     flexDirection: "row",
@@ -433,8 +468,8 @@ const styles = StyleSheet.create({
   progress: {
     fontFamily: MONO,
     fontSize: 11,
-    color: COLOR.fg,
-    marginTop: 4,
+    color: COLOR.primary,
+    marginTop: 5,
   },
 
   btn: {
@@ -446,37 +481,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   btnPrimary: {
-    backgroundColor: COLOR.fg,
-    borderColor: COLOR.fg,
+    backgroundColor: COLOR.primarySoft,
+    borderColor: COLOR.primary,
   },
   btnText: {
     fontFamily: MONO,
-    color: COLOR.bg,
-    fontWeight: "700",
+    color: COLOR.primary,
+    fontWeight: "800",
     fontSize: 10,
     letterSpacing: 2,
     textTransform: "uppercase",
   },
-  btnPressed: { opacity: 0.7 },
-  btnDisabled: { opacity: 0.4 },
+  btnPressed: { opacity: 0.6 },
+  btnDisabled: { opacity: 0.35 },
   btnSmall: { paddingVertical: 7, paddingHorizontal: 10, marginTop: 0 },
 
   badge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: COLOR.fg,
   },
-  badgeOutline: { backgroundColor: COLOR.bg },
-  badgeFilled: { backgroundColor: COLOR.fg },
   badgeText: {
     fontFamily: MONO,
     fontSize: 9,
-    fontWeight: "700",
+    fontWeight: "800",
     letterSpacing: 2,
   },
-  badgeTextOutline: { color: COLOR.fg },
-  badgeTextInverted: { color: COLOR.bg },
 
   logRow: {
     flexDirection: "row",
@@ -490,5 +520,5 @@ const styles = StyleSheet.create({
     minWidth: 70,
   },
   logMsg: { fontFamily: MONO, fontSize: 11, color: COLOR.fg, flex: 1 },
-  logErr: { color: COLOR.err, fontWeight: "700" },
+  logErr: { color: COLOR.destructive, fontWeight: "700" },
 });

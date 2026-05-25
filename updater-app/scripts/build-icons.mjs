@@ -75,22 +75,25 @@ async function render(svg, outName) {
 
 await mkdir(OUT_DIR, { recursive: true });
 
-// 1. Main icon — black on white, almost the full canvas. Slight inset so the
-//    glyph doesn't kiss the corners on launchers that round the icon.
+// 1. Main icon — neon green on near-black, industrial palette aligned with
+//    the app's UI theme. Slight inset so the glyph doesn't kiss the corners
+//    on launchers that round the icon.
 await render(
-  buildSvg({ fg: "#000000", bg: "#ffffff", scale: 0.78 }),
+  buildSvg({ fg: "#39ff14", bg: "#0a0a0a", scale: 0.78 }),
   "icon.png",
 );
 
 // 2. Adaptive icon foreground — Android crops to a circle/squircle mask;
-//    only the inner ~66% is guaranteed visible. 0.6 leaves a small margin.
+//    only the inner ~66% is guaranteed visible. The system composites this
+//    over `adaptiveIcon.backgroundColor` so we render the glyph in the same
+//    neon green and leave the canvas transparent.
 await render(
-  buildSvg({ fg: "#000000", bg: null, scale: 0.6 }),
+  buildSvg({ fg: "#39ff14", bg: null, scale: 0.6 }),
   "adaptive-icon.png",
 );
 
 // 3. Monochrome icon for Android 13+ themed icons. Single color on transparent;
-//    the system tints it to match wallpaper. Same safe-zone constraint as #2.
+//    the system tints it to match wallpaper, so render in white as a base.
 await render(
   buildSvg({ fg: "#ffffff", bg: null, scale: 0.6 }),
   "monochrome-icon.png",
