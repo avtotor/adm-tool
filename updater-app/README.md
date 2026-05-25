@@ -58,6 +58,35 @@ Expo / React Native клиент для adm-tool. Шлёт heartbeat на сер
 - **Heartbeat работает только пока приложение открыто** — для фоновой
   работы нужно подключать `expo-task-manager`.
 
+## Сборка через GitHub Actions
+
+В репозитории настроен workflow `.github/workflows/build-apk.yml`,
+который собирает release APK без EAS и кладёт его в артефакты сборки.
+
+**Запуск:**
+
+- Автоматически на push в `main` если изменился `updater-app/**`.
+- Вручную через **Actions → Build Updater APK → Run workflow**. В форме
+  можно перебить `server_url` / `target_package` для этой конкретной сборки.
+
+**Настройка дефолтов** (Settings → Secrets and variables → Actions → **Variables**):
+
+| Variable                          | Пример                       |
+| --------------------------------- | ---------------------------- |
+| `EXPO_PUBLIC_SERVER_URL`          | `http://192.168.1.10:8080`   |
+| `EXPO_PUBLIC_TARGET_PACKAGE`      | `com.company.factoryapp`     |
+| `EXPO_PUBLIC_HEARTBEAT_SECONDS`   | `300`                        |
+
+Если переменные не заданы, используются дефолты из `.env.example`.
+
+**Где взять APK:** Actions → конкретный run → раздел Artifacts → файл
+`adm-updater-rN-<sha>.apk`.
+
+**Подпись:** APK подписывается `debug.keystore` из Expo-шаблона — этот
+ключ одинаков между сборками, поэтому обновление через adm-tool сервер
+работает корректно. Для production-ключа замените блок «Build release
+APK» на свой `signingConfig` с секретами `ANDROID_KEYSTORE_BASE64` и т.д.
+
 ## Сценарий деплоя на планшет
 
 1. Поставить `adm-updater.apk` (этот проект, собранный EAS).

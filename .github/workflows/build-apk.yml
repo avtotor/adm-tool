@@ -1,0 +1,105 @@
+name: Build Updater APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      server_url:
+        description: "URL adm-tool сервера (перебивает дефолт из repo variables)"
+        required: false
+        default: ""
+      target_package:
+        description: "Имя целевого пакета (перебивает дефолт из repo variables)"
+        required: false
+        default: ""
+  push:
+    branches: [main]
+    paths:
+      - "updater-app/**"
+      - ".github/workflows/build-apk.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build release APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: updater-app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: updater-app/pnpm-lock.yaml
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Write .env (build-time config)
+        env:
+          DEFAULT_SERVER_URL: ${{ vars.EXPO_PUBLIC_SERVER_URL }}
+          DEFAULT_TARGET_PACKAGE: ${{ vars.EXPO_PUBLIC_TARGET_PACKAGE }}
+          DEFAULT_HEARTBEAT: ${{ vars.EXPO_PUBLIC_HEARTBEAT_SECONDS }}
+          INPUT_SERVER_URL: ${{ inputs.server_url }}
+          INPUT_TARGET_PACKAGE: ${{ inputs.target_package }}
+        run: |
+          SERVER_URL="${INPUT_SERVER_URL:-${DEFAULT_SERVER_URL:-http://192.168.1.10:8080}}"
+          TARGET_PACKAGE="${INPUT_TARGET_PACKAGE:-${DEFAULT_TARGET_PACKAGE:-com.example.app}}"
+          HEARTBEAT="${DEFAULT_HEARTBEAT:-300}"
+          cat > .env <<EOF
+          EXPO_PUBLIC_SERVER_URL=$SERVER_URL
+          EXPO_PUBLIC_TARGET_PACKAGE=$TARGET_PACKAGE
+          EXPO_PUBLIC_HEARTBEAT_SECONDS=$HEARTBEAT
+          EOF
+          echo "::notice::SERVER_URL=$SERVER_URL TARGET_PACKAGE=$TARGET_PACKAGE HB=${HEARTBEAT}s"
+
+      - name: Expo prebuild (generate native android/)
+        run: pnpm exec expo prebuild --platform android --no-install --non-interactive
+
+      - name: Build release APK
+        working-directory: updater-app/android
+        env:
+          # APK подписывается debug.keystore из Expo-шаблона — это даёт
+          # одинаковую подпись между сборками, так что обновление через
+          # adm-tool работает. Для смены ключа добавь свой signingConfig
+          # release и переменные ANDROID_*_PASSWORD в repo secrets.
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8"
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: Rename APK
+        id: apk
+        run: |
+          SRC=$(ls android/app/build/outputs/apk/release/*.apk | head -n1)
+          NAME="adm-updater-r${{ github.run_number }}-$(git rev-parse --short HEAD).apk"
+          cp "$SRC" "$NAME"
+          ls -lh "$NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.name }}
+          path: updater-app/${{ steps.apk.outputs.name }}
+          if-no-files-found: error
+          retention-days: 30
