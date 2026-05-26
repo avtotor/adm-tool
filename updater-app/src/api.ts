@@ -1,4 +1,4 @@
-import { SERVER_URL } from "./config";
+import { getServerUrl } from "./config";
 import type { DeviceSnapshot } from "./device";
 
 export type ServerUpdate = {
@@ -17,7 +17,7 @@ export type HeartbeatResult = {
 
 export async function sendHeartbeat(snap: DeviceSnapshot): Promise<HeartbeatResult> {
   try {
-    const res = await fetch(`${SERVER_URL}/api/heartbeat`, {
+    const res = await fetch(`${getServerUrl()}/api/heartbeat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(snap),
@@ -35,5 +35,5 @@ export async function sendHeartbeat(snap: DeviceSnapshot): Promise<HeartbeatResu
 
 export function absoluteUrl(url: string): string {
   if (/^https?:\/\//i.test(url)) return url;
-  return `${SERVER_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+  return `${getServerUrl()}${url.startsWith("/") ? "" : "/"}${url}`;
 }

@@ -3,17 +3,28 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
-import { HEARTBEAT_SECONDS, SERVER_URL, TARGET_PACKAGE } from "./src/config";
+import {
+  DEFAULT_SERVER_URL,
+  HEARTBEAT_SECONDS,
+  TARGET_PACKAGE,
+  getServerUrl,
+  loadServerUrl,
+  resetServerUrl,
+  setServerUrl,
+} from "./src/config";
 import { snapshot, type DeviceSnapshot } from "./src/device";
 import { sendHeartbeat, type ServerUpdate } from "./src/api";
 import { downloadApk, installApk, type DownloadProgress } from "./src/installer";
@@ -65,6 +76,9 @@ export default function App() {
   const [progress, setProgress] = useState<DownloadProgress | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [, forceTick] = useState(0);
+  const [serverUrl, setServerUrlState] = useState<string>(getServerUrl());
+  const [configReady, setConfigReady] = useState<boolean>(false);
+  const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
 
   const appendLog = useCallback((level: LogEntry["level"], msg: string) => {
     setLog((prev) => [{ ts: Date.now(), level, msg }, ...prev].slice(0, 50));
@@ -101,6 +115,20 @@ export default function App() {
   }, [appendLog]);
 
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const url = await loadServerUrl();
+      if (cancelled) return;
+      setServerUrlState(url);
+      setConfigReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!configReady) return;
     refresh();
     const interval = setInterval(refresh, HEARTBEAT_SECONDS * 1000);
     const tick = setInterval(() => forceTick((n) => n + 1), 5_000);
@@ -108,7 +136,29 @@ export default function App() {
       clearInterval(interval);
       clearInterval(tick);
     };
-  }, [refresh]);
+  }, [configReady, refresh]);
+
+  const handleSaveServerUrl = useCallback(
+    async (raw: string) => {
+      try {
+        const next = await setServerUrl(raw);
+        setServerUrlState(next);
+        setSettingsOpen(false);
+        appendLog("info", `URL сервера: ${next}`);
+        refresh();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        Alert.alert("Ошибка", msg);
+      }
+    },
+    [appendLog, refresh],
+  );
+
+  const handleResetServerUrl = useCallback(async () => {
+    const next = await resetServerUrl();
+    setServerUrlState(next);
+    appendLog("info", `URL сервера сброшен → ${next}`);
+  }, [appendLog]);
 
   const handleInstall = useCallback(
     async (update: ServerUpdate) => {
@@ -138,12 +188,28 @@ export default function App() {
       <StatusBar style="light" />
       <SafeAreaView style={styles.root} edges={["top", "left", "right"]}>
         <View style={styles.header}>
-          <View style={{ flex: 1 }}>
+          <Pressable
+            style={{ flex: 1 }}
+            onPress={() => setSettingsOpen(true)}
+            hitSlop={8}
+          >
             <Text style={styles.title}>
               <Text style={styles.titlePrefix}>{"> "}</Text>ADM·UPDATER
             </Text>
-            <Text style={styles.subtitle}>{SERVER_URL}</Text>
-          </View>
+            <Text style={styles.subtitle} numberOfLines={1}>
+              {serverUrl}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setSettingsOpen(true)}
+            style={({ pressed }) => [
+              styles.gearBtn,
+              pressed && styles.btnPressed,
+            ]}
+            hitSlop={10}
+          >
+            <Text style={styles.gearText}>[cfg]</Text>
+          </Pressable>
           <StatusBadge status={status} />
         </View>
 
@@ -280,8 +346,107 @@ export default function App() {
             )}
           </Section>
         </ScrollView>
+
+        <SettingsModal
+          visible={settingsOpen}
+          currentUrl={serverUrl}
+          onClose={() => setSettingsOpen(false)}
+          onSave={handleSaveServerUrl}
+          onReset={handleResetServerUrl}
+        />
       </SafeAreaView>
     </SafeAreaProvider>
+  );
+}
+
+function SettingsModal({
+  visible,
+  currentUrl,
+  onClose,
+  onSave,
+  onReset,
+}: {
+  visible: boolean;
+  currentUrl: string;
+  onClose: () => void;
+  onSave: (url: string) => void | Promise<void>;
+  onReset: () => void | Promise<void>;
+}) {
+  const [value, setValue] = useState(currentUrl);
+
+  useEffect(() => {
+    if (visible) setValue(currentUrl);
+  }, [visible, currentUrl]);
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <KeyboardAvoidingView
+        style={styles.modalBackdrop}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <View style={styles.modalCard}>
+          <Text style={styles.sectionTitle}>// Настройки</Text>
+          <View style={styles.sectionRule} />
+
+          <Text style={[styles.rowLabel, { marginTop: 14, marginBottom: 6 }]}>
+            URL сервера
+          </Text>
+          <TextInput
+            value={value}
+            onChangeText={setValue}
+            placeholder="http://192.168.1.10:8080"
+            placeholderTextColor={COLOR.muted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+            style={styles.input}
+            selectionColor={COLOR.primary}
+          />
+
+          <Text style={[styles.muted, { marginTop: 8 }]}>
+            default: {DEFAULT_SERVER_URL}
+          </Text>
+
+          <View style={styles.modalActions}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.btn,
+                styles.btnGhost,
+                pressed && styles.btnPressed,
+              ]}
+              onPress={onClose}
+            >
+              <Text style={styles.btnGhostText}>Отмена</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.btn,
+                styles.btnGhost,
+                pressed && styles.btnPressed,
+              ]}
+              onPress={onReset}
+            >
+              <Text style={styles.btnGhostText}>Сброс</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.btn,
+                styles.btnPrimary,
+                pressed && styles.btnPressed,
+              ]}
+              onPress={() => onSave(value)}
+            >
+              <Text style={styles.btnText}>Сохранить</Text>
+            </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }
 
@@ -495,6 +660,62 @@ const styles = StyleSheet.create({
   btnPressed: { opacity: 0.6 },
   btnDisabled: { opacity: 0.35 },
   btnSmall: { paddingVertical: 7, paddingHorizontal: 10, marginTop: 0 },
+  btnGhost: {
+    backgroundColor: "transparent",
+    borderColor: COLOR.border,
+  },
+  btnGhostText: {
+    fontFamily: MONO,
+    color: COLOR.muted,
+    fontWeight: "800",
+    fontSize: 10,
+    letterSpacing: 2,
+    textTransform: "uppercase",
+  },
+
+  gearBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: COLOR.border,
+  },
+  gearText: {
+    fontFamily: MONO,
+    fontSize: 10,
+    color: COLOR.muted,
+    letterSpacing: 2,
+    textTransform: "uppercase",
+  },
+
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.75)",
+    justifyContent: "center",
+    paddingHorizontal: 18,
+  },
+  modalCard: {
+    backgroundColor: COLOR.bgPanel,
+    borderWidth: 1,
+    borderColor: COLOR.border,
+    padding: 18,
+  },
+  input: {
+    fontFamily: MONO,
+    fontSize: 13,
+    color: COLOR.fg,
+    backgroundColor: COLOR.bg,
+    borderWidth: 1,
+    borderColor: COLOR.border,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 16,
+    justifyContent: "flex-end",
+  },
 
   badge: {
     paddingHorizontal: 10,
